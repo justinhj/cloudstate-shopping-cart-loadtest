@@ -30,33 +30,49 @@ class ShoppingCartSimulation1 extends Simulation {
   val host = scala.util.Properties.envOrElse("GATLING_HOST", "localhost")
   val portString = scala.util.Properties.envOrElse("GATLING_PORT", "9000")
   val port = Try(portString.toInt).getOrElse(9000)
+  val numUsersString = scala.util.Properties.envOrElse("GATLING_NUM_USERS", "10")
+  val numUsers = Try(numUsersString.toInt).getOrElse(10)
 
   val grpcConf = grpc(ManagedChannelBuilder.forAddress(host, port).usePlaintext())
-
   val userFeeder = RandomUsers.randomUserFeeder
-  val itemFeeder = csv("items.csv").eager.random
 
-  // TODO items come from CSV
-  // TODO parameter for number of users and other metrics
-  // TODO user should add 10 items, get the basket, remove 10 items, repeat N times
+  val itemFeeder = csv("items.csv").eager.random
 
   val scn = scenario("Adding items")
     .feed(userFeeder)
-    .feed(itemFeeder)
-    .exec(
-      grpc("Success")
-      .rpc(ShoppingCartGrpc.METHOD_ADD_ITEM)
-      .payload(session =>
-        for (
-          userId <- session("userId").validate[String];
-          productId <- session("product_id").validate[String];
-          productName <- session("product_name").validate[String]
-        ) yield AddLineItem(userId, productId = productId, name = productName, quantity = 1)))
-    //.extract(a => a)
-    //.header(TokenHeaderKey)($("token"))
-    //.extract(_.data.split(' ').headOption)(_ saveAs "s")
+    .repeat(10) {
+      feed(itemFeeder).
+      exec(
+        grpc("Add Item")
+          .rpc(ShoppingCartGrpc.METHOD_ADD_ITEM)
+          .payload(session =>
+            for (
+              userId <- session("userId").validate[String];
+              productId <- session("product_id").validate[String];
+              productName <- session("product_name").validate[String]
+            ) yield AddLineItem(userId, productId = productId, name = productName, quantity = 1)))
+      .exec(
+        grpc("GetCart")
+          .rpc(ShoppingCartGrpc.METHOD_GET_CART)
+          .payload(session =>
+            for (
+              userId <- session("userId").validate[String]
+            ) yield GetShoppingCart(userId))
+          .extract(_.items.headOption.map(_.productId))(item => item.saveAs("addedItem"))
+      )
+      // .exec(session => {
+      //   println(s"Found product id ${session("addedItem").as[String]}")
+      //   session})
+      .exec(
+        grpc("RemoveItem")
+          .rpc(ShoppingCartGrpc.METHOD_REMOVE_ITEM)
+          .payload(session =>
+            for (
+              userId <- session("userId").validate[String];
+              productId <- session("addedItem").validate[String]
+            ) yield RemoveLineItem(userId, productId))
+      )
+    }
 
-  setUp(scn.inject(atOnceUsers(5)).protocols(grpcConf))
-
-  //    setUp(scn.inject(rampUsers(200) over (30 seconds)).protocols(httpConf))
+  setUp(scn.inject(rampUsers(numUsers) during (30 seconds)).protocols(grpcConf))
 }
