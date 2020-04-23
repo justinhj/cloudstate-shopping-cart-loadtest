@@ -1,22 +1,15 @@
-Gatling's SBT plugin demo
-=========================
+Cloudstate Gatling Loadtest example
+===================================
 
-A simple project showing how to configure and use Gatling's SBT plugin to run Gatling simulations. 
+Running the shopping cart load test
 
-This project uses SBT 1, which is available [here](https://www.scala-sbt.org/download.html).
+In sbt
 
-Get the project
----------------
+`gatling-it:testOnly shoppingcart.ShoppingCartSimulation1`
 
-```bash
-git clone https://github.com/gatling/gatling-sbt-plugin-demo.git && cd gatling-sbt-plugin-demo
-```
+# Technical notes
 
-Start SBT
----------
-```bash
-$ sbt
-```
+This project uses Gatling as a plugin along with grpc to handle the protobuf compilation and gatling-grpc so that we can write Gatling load tests over gRPC instead of HTTP.
 
 Run all simulations
 -------------------
@@ -29,7 +22,7 @@ Run a single simulation
 -----------------------
 
 ```bash
-> gatling:testOnly computerdatabase.BasicSimulation
+> gatling:testOnly shoppingcart.ShoppingCartSimulation1
 ```
 
 List all tasks
@@ -38,3 +31,9 @@ List all tasks
 ```bash
 > tasks gatling -v
 ```
+
+## References
+
+https://github.com/gatling/gatling-sbt-plugin-demo
+https://github.com/phiSgr/gatling-grpc
+https://medium.com/@georgeleung_7777/a-demo-of-gatling-grpc-bc92158ca808

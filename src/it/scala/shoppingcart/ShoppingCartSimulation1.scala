@@ -6,30 +6,57 @@ import scala.concurrent.duration._
 import io.grpc.ManagedChannelBuilder
 import com.github.phisgr.gatling.grpc.Predef._
 import com.example.shoppingcart.shoppingcart._
+import scala.util.Try
+import scala.util.Random
 
-// https://github.com/phiSgr/gatling-grpc
-// https://medium.com/@georgeleung_7777/a-demo-of-gatling-grpc-bc92158ca808
+object RandomUsers {
+
+  val randomUserFeeder = new Iterator[Map[String,String]] {
+
+    private val RNG = new Random
+
+    override def hasNext = true
+
+    override def next: Map[String, String] = {
+      val id = s"gatling-${RNG.nextLong.toString}"
+
+      Map("userId" -> id)
+    }
+  }
+}
 
 class ShoppingCartSimulation1 extends Simulation {
 
-  // TODO the server and port need to be in config
-  val grpcConf = grpc(ManagedChannelBuilder.forAddress("localhost", 9000).usePlaintext())
+  val host = scala.util.Properties.envOrElse("GATLING_HOST", "localhost")
+  val portString = scala.util.Properties.envOrElse("GATLING_PORT", "9000")
+  val port = Try(portString.toInt).getOrElse(9000)
 
-  // val httpProtocol = http
-  //   .baseUrl("http://computer-database.gatling.io") // Here is the root for all relative URLs
-  //   .acceptHeader("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8") // Here are the common headers
-  //   .acceptEncodingHeader("gzip, deflate")
-  //   .acceptLanguageHeader("en-US,en;q=0.5")
-  //   .userAgentHeader("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:16.0) Gecko/20100101 Firefox/16.0")
+  val grpcConf = grpc(ManagedChannelBuilder.forAddress(host, port).usePlaintext())
 
-  val userId = "justinhj1"
+  val userFeeder = RandomUsers.randomUserFeeder
+  val itemFeeder = csv("items.csv").eager.random
 
-  val scn = scenario("Adding items") // A scenario is a chain of requests and pauses
-    .exec(grpc("Success")
+  // TODO items come from CSV
+  // TODO parameter for number of users and other metrics
+  // TODO user should add 10 items, get the basket, remove 10 items, repeat N times
+
+  val scn = scenario("Adding items")
+    .feed(userFeeder)
+    .feed(itemFeeder)
+    .exec(
+      grpc("Success")
       .rpc(ShoppingCartGrpc.METHOD_ADD_ITEM)
-      .payload(AddLineItem(userId, productId = "product 1", name = "amazing sun glasses 1", quantity = 1)))
+      .payload(session =>
+        for (
+          userId <- session("userId").validate[String];
+          productId <- session("product_id").validate[String];
+          productName <- session("product_name").validate[String]
+        ) yield AddLineItem(userId, productId = productId, name = productName, quantity = 1)))
+    //.extract(a => a)
     //.header(TokenHeaderKey)($("token"))
     //.extract(_.data.split(' ').headOption)(_ saveAs "s")
 
   setUp(scn.inject(atOnceUsers(5)).protocols(grpcConf))
+
+  //    setUp(scn.inject(rampUsers(200) over (30 seconds)).protocols(httpConf))
 }
