@@ -18,11 +18,17 @@ Run all simulations
 > gatling:test
 ```
 
-Run a single simulation
------------------------
+Run the shopping cart simulation from sbt
+-----------------------------------------
 
 ```bash
 > gatling:testOnly shoppingcart.ShoppingCartSimulation1
+```
+
+Run the shopping cart simulation at the command line
+
+```
+GATLING_PORT=[PORT] GATLING_USERS=[NUM USERS] GATLING_HOST=[YOUR HOST] sbt gatling-it:testOnly shoppingcart.ShoppingCartSimulation1
 ```
 
 List all tasks
