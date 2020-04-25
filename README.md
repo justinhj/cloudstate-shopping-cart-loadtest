@@ -22,7 +22,7 @@ Run the shopping cart simulation from sbt
 -----------------------------------------
 
 ```bash
-> gatling:testOnly shoppingcart.ShoppingCartSimulation1
+> gatling-it:testOnly shoppingcart.ShoppingCartSimulation1
 ```
 
 Run the shopping cart simulation at the command line
