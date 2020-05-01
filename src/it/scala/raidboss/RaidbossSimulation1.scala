@@ -44,22 +44,32 @@ class RaidBossSimulation1 extends Simulation {
   val instanceId = bossDefId + "-" + groupId + "-" + System.currentTimeMillis.toString
 
   val scn = scenario("Create and attack")
-    .feed(userFeeder)
+    .exec(
+      grpc("Create Boss")
+        .rpc(RaidBossServiceGrpc.METHOD_CREATE_RAID_BOSS)
+        .payload(RaidBossCreate(instanceId, bossDefId, groupId)))
     .repeat(10) {
-      exec(
-        grpc("Create Boss")
-          .rpc(RaidBossServiceGrpc.METHOD_CREATE_RAID_BOSS)
-          .payload(RaidBossCreate(instanceId, bossDefId, groupId)))
-      .exec(
-        grpc("Attack Boss")
-          .rpc(RaidBossServiceGrpc.METHOD_ATTACK_RAID_BOSS)
-          .payload(session =>
-            for (
-              playerId <- session("playerId").validate[String]
-            ) yield RaidBossAttack(instanceId, playerId, 10))
-          .extract(_.health.map(_ => _))(h => h.saveAs("health"))
-      )
+        feed(userFeeder)
+        .exec(
+          grpc("Attack Boss")
+            .rpc(RaidBossServiceGrpc.METHOD_ATTACK_RAID_BOSS)
+            .payload(session =>
+              for (
+                playerId <- session("playerId").validate[String]
+              ) yield RaidBossAttack(instanceId, playerId, 10))
+              .extract(rbi => Some(rbi.health))(h => h.saveAs("rbiHealth"))
+          )
     }
+    .exec(
+      grpc("View Boss")
+        .rpc(RaidBossServiceGrpc.METHOD_VIEW_RAID_BOSS)
+        .payload(RaidBossView(instanceId))
+        .extract(rbi => Some(rbi))(rbi => rbi.saveAs("finalBoss"))
+    )
+    .exec(session => {
+      println(s"Final view ${session("finalBoss").as[RaidBossInstance]}")
+      session
+    })
 
   setUp(scn.inject(rampUsers(numUsers) during (30 seconds)).protocols(grpcConf))
 }
